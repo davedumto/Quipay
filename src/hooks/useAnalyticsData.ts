@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTransactionData } from "./useTransactionData";
 
 const MONTHS = ["January 2026", "February 2026", "March 2026"];
@@ -6,6 +6,15 @@ const LABELS = ["Jan", "Feb", "Mar"];
 
 export function useAnalyticsData() {
   const { allTransactions } = useTransactionData();
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setLastUpdatedAt(new Date());
+    }, 15_000);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   const payrollTrend = useMemo(
     () =>
@@ -57,8 +66,11 @@ export function useAnalyticsData() {
   );
 
   const treasuryHistory = useMemo(() => {
-    let balance = 200_000;
-    return MONTHS.map((_, i) => {
+    const initialBalance = 200_000;
+
+    return MONTHS.reduce<
+      Array<{ month: string; balance: number; payouts: number }>
+    >((history, _, i) => {
       const payouts = allTransactions
         .filter((tx) => {
           const d = new Date(tx.date);
@@ -68,10 +80,20 @@ export function useAnalyticsData() {
             tx.status === "completed"
           );
         })
-        .reduce((s, t) => s + t.amount, 0);
-      balance -= payouts;
-      return { month: LABELS[i], balance: Math.max(balance, 0), payouts };
-    });
+        .reduce((sum, tx) => sum + tx.amount, 0);
+
+      const previousBalance =
+        history[history.length - 1]?.balance ?? initialBalance;
+      const nextBalance = Math.max(previousBalance - payouts, 0);
+
+      history.push({
+        month: LABELS[i],
+        balance: nextBalance,
+        payouts,
+      });
+
+      return history;
+    }, []);
   }, [allTransactions]);
 
   const streamStatus = useMemo(
@@ -99,8 +121,7 @@ export function useAnalyticsData() {
     const workers = new Set(allTransactions.map((t) => t.employeeId)).size;
     const avgMonthly =
       payrollTrend.reduce((s, m) => s + m.completed, 0) / MONTHS.length;
-    const treasury =
-      treasuryHistory[treasuryHistory.length - 1]?.balance ?? 0;
+    const treasury = treasuryHistory[treasuryHistory.length - 1]?.balance ?? 0;
     return { totalDisbursed, workers, avgMonthly, treasury };
   }, [allTransactions, payrollTrend, treasuryHistory]);
 
@@ -111,5 +132,7 @@ export function useAnalyticsData() {
     treasuryHistory,
     streamStatus,
     kpis,
+    lastUpdatedAt,
+    refreshIntervalMs: 15_000,
   };
 }

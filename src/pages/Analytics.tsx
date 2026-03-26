@@ -4,6 +4,7 @@ import { PayrollTrendChart } from "../components/Charts/PayrollTrendChart";
 import { EarningsTrendChart } from "../components/Charts/EarningsTrendChart";
 import { TreasuryBalanceChart } from "../components/Charts/TreasuryBalanceChart";
 import { StreamStatusChart } from "../components/Charts/StreamStatusChart";
+import { useTheme } from "../providers/ThemeProvider";
 
 const tw = {
   page: "min-h-screen bg-[linear-gradient(135deg,#0f172a_0%,#1e1b4b_50%,#0f172a_100%)] px-6 pb-16 pt-8 font-[Inter,sans-serif] text-slate-200",
@@ -17,8 +18,7 @@ const tw = {
   kpiLabel:
     "mb-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-slate-500",
   kpiValue: "text-[1.5rem] font-extrabold",
-  chartsGrid:
-    "mx-auto grid max-w-[1200px] grid-cols-1 gap-6 md:grid-cols-2",
+  chartsGrid: "mx-auto grid max-w-[1200px] grid-cols-1 gap-6 md:grid-cols-2",
   card: "rounded-2xl border border-indigo-500/15 bg-slate-800/55 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]",
   cardHeader: "mb-4 flex items-start justify-between gap-3",
   cardMeta: "flex-1",
@@ -37,10 +37,7 @@ function fmt(n: number) {
   return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
-function exportCSV(
-  data: Record<string, string | number>[],
-  filename: string,
-) {
+function exportCSV(data: Record<string, string | number>[], filename: string) {
   if (!data.length) return;
   const keys = Object.keys(data[0]);
   const rows = [
@@ -84,42 +81,77 @@ function exportPNG(
 }
 
 const Analytics: React.FC = () => {
-  const { payrollTrend, earningsTrend, topEmployees, treasuryHistory, streamStatus, kpis } =
-    useAnalyticsData();
+  const { theme } = useTheme();
+  const {
+    payrollTrend,
+    earningsTrend,
+    topEmployees,
+    treasuryHistory,
+    streamStatus,
+    kpis,
+    lastUpdatedAt,
+    refreshIntervalMs,
+  } = useAnalyticsData();
 
   const payrollRef = useRef<HTMLDivElement>(null);
   const earningsRef = useRef<HTMLDivElement>(null);
   const treasuryRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef<HTMLDivElement>(null);
 
+  const palette =
+    theme === "dark"
+      ? {
+          page: "min-h-screen bg-[linear-gradient(135deg,#0f172a_0%,#1e1b4b_50%,#0f172a_100%)] px-6 pb-16 pt-8 font-[Inter,sans-serif] text-slate-200",
+          card: "rounded-2xl border border-indigo-500/15 bg-slate-800/55 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]",
+          subtitle: "text-slate-400",
+          title:
+            "mb-1 text-[2rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#818cf8,#c084fc,#6366f1)] bg-clip-text",
+        }
+      : {
+          page: "min-h-screen bg-[linear-gradient(135deg,#f7fbff_0%,#eef4ff_55%,#f8fafc_100%)] px-6 pb-16 pt-8 font-[Inter,sans-serif] text-slate-900",
+          card: "rounded-2xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-[20px]",
+          subtitle: "text-slate-500",
+          title:
+            "mb-1 text-[2rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#0f172a,#1d4ed8,#14b8a6)] bg-clip-text",
+        };
+
   return (
-    <div className={tw.page}>
+    <div className={palette.page}>
       <header className={tw.header}>
-        <h1 className={tw.title}>Payroll Analytics</h1>
-        <p className={tw.subtitle}>
+        <h1 className={palette.title}>Payroll Analytics</h1>
+        <p className={`m-0 text-[0.95rem] ${palette.subtitle}`}>
           Visualise spending trends, earnings, and treasury health
+        </p>
+        <p className={`mt-2 text-xs ${palette.subtitle}`}>
+          Auto-refreshes every {refreshIntervalMs / 1000}s. Last updated{" "}
+          {lastUpdatedAt.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })}
+          .
         </p>
       </header>
 
       {/* KPIs */}
       <div className={tw.kpiGrid} role="region" aria-label="Key metrics">
-        <div className={tw.kpi}>
+        <div className={palette.card}>
           <div className={tw.kpiLabel}>Total Disbursed</div>
           <div className={`${tw.kpiValue} text-indigo-300`}>
             {fmt(kpis.totalDisbursed)} USDC
           </div>
         </div>
-        <div className={tw.kpi}>
+        <div className={palette.card}>
           <div className={tw.kpiLabel}>Active Workers</div>
           <div className={`${tw.kpiValue} text-slate-100`}>{kpis.workers}</div>
         </div>
-        <div className={tw.kpi}>
+        <div className={palette.card}>
           <div className={tw.kpiLabel}>Avg Monthly Payroll</div>
           <div className={`${tw.kpiValue} text-purple-300`}>
             {fmt(kpis.avgMonthly)} USDC
           </div>
         </div>
-        <div className={tw.kpi}>
+        <div className={palette.card}>
           <div className={tw.kpiLabel}>Current Treasury</div>
           <div className={`${tw.kpiValue} text-emerald-400`}>
             {fmt(kpis.treasury)} USDC
@@ -130,11 +162,13 @@ const Analytics: React.FC = () => {
       {/* Charts */}
       <div className={tw.chartsGrid}>
         {/* Payroll Spending */}
-        <div className={tw.card}>
+        <div className={palette.card}>
           <div className={tw.cardHeader}>
             <div className={tw.cardMeta}>
               <div className={tw.cardTitle}>Payroll Spending</div>
-              <div className={tw.cardDesc}>Completed vs failed payments per month</div>
+              <div className={tw.cardDesc}>
+                Completed vs failed payments per month
+              </div>
             </div>
             <div className={tw.exportRow}>
               <button
@@ -153,13 +187,17 @@ const Analytics: React.FC = () => {
               </button>
             </div>
           </div>
-          <div ref={payrollRef} role="img" aria-label="Payroll spending area chart">
+          <div
+            ref={payrollRef}
+            role="img"
+            aria-label="Payroll spending area chart"
+          >
             <PayrollTrendChart data={payrollTrend} />
           </div>
         </div>
 
         {/* Worker Earnings */}
-        <div className={tw.card}>
+        <div className={palette.card}>
           <div className={tw.cardHeader}>
             <div className={tw.cardMeta}>
               <div className={tw.cardTitle}>Worker Earnings</div>
@@ -182,22 +220,30 @@ const Analytics: React.FC = () => {
               </button>
             </div>
           </div>
-          <div ref={earningsRef} role="img" aria-label="Worker earnings line chart">
+          <div
+            ref={earningsRef}
+            role="img"
+            aria-label="Worker earnings line chart"
+          >
             <EarningsTrendChart data={earningsTrend} employees={topEmployees} />
           </div>
         </div>
 
         {/* Treasury Balance */}
-        <div className={tw.card}>
+        <div className={palette.card}>
           <div className={tw.cardHeader}>
             <div className={tw.cardMeta}>
               <div className={tw.cardTitle}>Treasury Balance</div>
-              <div className={tw.cardDesc}>Running balance vs monthly payouts</div>
+              <div className={tw.cardDesc}>
+                Running balance vs monthly payouts
+              </div>
             </div>
             <div className={tw.exportRow}>
               <button
                 className={`${tw.btnExport} ${tw.btnCSV}`}
-                onClick={() => exportCSV(treasuryHistory, "treasury-history.csv")}
+                onClick={() =>
+                  exportCSV(treasuryHistory, "treasury-history.csv")
+                }
                 aria-label="Export treasury history as CSV"
               >
                 CSV
@@ -211,13 +257,17 @@ const Analytics: React.FC = () => {
               </button>
             </div>
           </div>
-          <div ref={treasuryRef} role="img" aria-label="Treasury balance area chart">
+          <div
+            ref={treasuryRef}
+            role="img"
+            aria-label="Treasury balance area chart"
+          >
             <TreasuryBalanceChart data={treasuryHistory} />
           </div>
         </div>
 
         {/* Stream Status */}
-        <div className={tw.card}>
+        <div className={palette.card}>
           <div className={tw.cardHeader}>
             <div className={tw.cardMeta}>
               <div className={tw.cardTitle}>Stream Status</div>
@@ -240,7 +290,11 @@ const Analytics: React.FC = () => {
               </button>
             </div>
           </div>
-          <div ref={statusRef} role="img" aria-label="Stream status donut chart">
+          <div
+            ref={statusRef}
+            role="img"
+            aria-label="Stream status donut chart"
+          >
             <StreamStatusChart data={streamStatus} />
           </div>
         </div>
