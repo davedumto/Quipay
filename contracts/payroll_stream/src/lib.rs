@@ -1444,3 +1444,6 @@ mod integration_test;
 
 #[cfg(test)]
 mod proptest;
+
+#[cfg(test)]
+mod invariant_test;
