@@ -5,6 +5,9 @@ import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
 import Footer from "./components/layout/Footer";
 import WalletGuard from "./components/WalletGuard";
+import { TooltipProvider } from "./components/ui";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import KeyboardShortcutsModal from "./components/KeyboardShortcutsModal";
 
 const Home = lazy(() => import("./pages/Home"));
 const Debugger = lazy(() => import("./pages/Debugger"));
@@ -20,9 +23,12 @@ const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
 const Analytics = lazy(() => import("./pages/Analytics"));
+const WorkforceRegistry = lazy(() => import("./pages/WorkforceRegistry"));
 const DashboardCustomization = lazy(
   () => import("./pages/DashboardCustomization"),
 );
+const StreamTemplates = lazy(() => import("./pages/StreamTemplates"));
+const StreamComparison = lazy(() => import("./pages/StreamComparison"));
 const UIPrimitivesPreview = lazy(
   () => import("./pages/UIPrimitivesPreview.tsx"),
 );
@@ -43,20 +49,28 @@ function AppLoadingFallback() {
 
 function AppLayout() {
   const { t } = useTranslation();
+  const { isHelpModalOpen, toggleHelpModal } = useKeyboardShortcuts();
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <a href="#main-content" className="skip-link">
-        {t("common.skip_to_content")}
-      </a>
-      <Navbar />
-      <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
-        <OnboardingTour />
-        <Suspense fallback={<AppLoadingFallback />}>
-          <Outlet />
-        </Suspense>
-      </main>
-      <Footer />
-    </div>
+    <TooltipProvider>
+      <div className="flex min-h-screen flex-col">
+        <a href="#main-content" className="skip-link">
+          {t("common.skip_to_content")}
+        </a>
+        <Navbar />
+        <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
+          <OnboardingTour />
+          <Suspense fallback={<AppLoadingFallback />}>
+            <Outlet />
+          </Suspense>
+        </main>
+        <Footer />
+        <KeyboardShortcutsModal
+          isOpen={isHelpModalOpen}
+          onClose={toggleHelpModal}
+        />
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -151,12 +165,36 @@ function App() {
               </WalletGuard>
             }
           />
+          <Route
+            path="/templates"
+            element={
+              <WalletGuard>
+                <StreamTemplates />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/stream-comparison"
+            element={
+              <WalletGuard>
+                <StreamComparison />
+              </WalletGuard>
+            }
+          />
 
           <Route
             path="/worker"
             element={
               <WalletGuard>
                 <WorkerDashboard />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/workforce"
+            element={
+              <WalletGuard>
+                <WorkforceRegistry />
               </WalletGuard>
             }
           />

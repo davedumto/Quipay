@@ -1,14 +1,19 @@
 import React from "react";
 import { Layout, Text, Button } from "@stellar/design-system";
 import { useTranslation } from "react-i18next";
-import { usePayroll } from "../hooks/usePayroll";
+import { usePayroll, Stream } from "../hooks/usePayroll";
 import { useNavigate } from "react-router-dom";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
 import EmptyState from "../components/EmptyState";
 import StreamVisualizer from "../components/StreamVisualizer";
+import { CancelStreamModal } from "../components/CancelStreamModal";
+import { buildCancelStreamTx } from "../contracts/payroll_stream";
+import { useWallet } from "../hooks/useWallet";
+import { useNotification } from "../hooks/useNotification";
 import { SkeletonCard, SkeletonRow } from "../components/Loading";
 import type { SimulationResult } from "../util/simulationUtils";
+import CopyButton from "../components/CopyButton";
 
 const EmployerDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -26,14 +31,37 @@ const EmployerDashboard: React.FC = () => {
     streamItem:
       "flex items-center justify-between gap-3.5 rounded-md border border-[var(--sds-color-neutral-border)] bg-[var(--sds-color-background-primary)] p-[15px] max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:p-4",
   };
+  const navigate = useNavigate();
+  const { addNotification } = useNotification();
+  const { address } = useWallet();
   const {
     treasuryBalances,
     totalLiabilities,
     activeStreamsCount,
     activeStreams,
     isLoading,
-  } = usePayroll();
-  const navigate = useNavigate();
+    refreshData,
+  } = usePayroll(address);
+
+  const [streamToCancel, setStreamToCancel] = React.useState<Stream | null>(
+    null,
+  );
+
+  const handleConfirmCancel = async () => {
+    if (!streamToCancel || !address) return;
+    try {
+      const streamIdBigInt = BigInt(streamToCancel.id);
+      await buildCancelStreamTx(streamIdBigInt, address);
+      addNotification(
+        `Successfully requested cancellation for stream ${streamToCancel.id}`,
+        "success",
+      );
+      await refreshData();
+    } catch (e) {
+      console.error(e);
+      addNotification("Failed to cancel stream", "error");
+    }
+  };
 
   const seoDescription = isLoading
     ? t("dashboard.loading_description")
@@ -276,15 +304,26 @@ const EmployerDashboard: React.FC = () => {
             <Text as="h2" size="lg">
               {t("dashboard.active_streams")}
             </Text>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => {
-                void navigate("/create-stream");
-              }}
-            >
-              {t("dashboard.create_new_stream")}
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => {
+                  void navigate("/stream-comparison");
+                }}
+              >
+                Compare streams
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => {
+                  void navigate("/create-stream");
+                }}
+              >
+                {t("dashboard.create_new_stream")}
+              </Button>
+            </div>
           </div>
 
           {activeStreams.length === 0 ? (
@@ -312,9 +351,25 @@ const EmployerDashboard: React.FC = () => {
                     <Text as="div" size="md" weight="bold">
                       {stream.employeeName}
                     </Text>
-                    <Text as="div" size="sm" style={{ color: "var(--muted)" }}>
-                      {stream.employeeAddress}
-                    </Text>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      <Text
+                        as="span"
+                        size="sm"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        {stream.employeeAddress}
+                      </Text>
+                      <CopyButton
+                        value={stream.employeeAddress}
+                        label="Copy employee address"
+                      />
+                    </div>
                   </div>
                   <div>
                     <Text as="div" size="sm">
@@ -325,10 +380,20 @@ const EmployerDashboard: React.FC = () => {
                       {t("dashboard.start")}: {stream.startDate}
                     </Text>
                   </div>
-                  <div>
+                  <div className="flex flex-col items-end justify-center gap-2">
                     <Text as="div" size="md" weight="bold">
                       Total: {stream.totalStreamed} {stream.tokenSymbol}
                     </Text>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setStreamToCancel(stream);
+                      }}
+                    >
+                      Cancel Stream
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -336,6 +401,17 @@ const EmployerDashboard: React.FC = () => {
           )}
         </div>
       </Layout.Inset>
+
+      {streamToCancel && (
+        <CancelStreamModal
+          isOpen={!!streamToCancel}
+          onClose={() => setStreamToCancel(null)}
+          onConfirm={handleConfirmCancel}
+          employeeName={streamToCancel.employeeName}
+          flowRate={streamToCancel.flowRate}
+          tokenSymbol={streamToCancel.tokenSymbol}
+        />
+      )}
     </Layout.Content>
   );
 };
